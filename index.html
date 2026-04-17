@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>☕ 호주 카페 POS 트레이너</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #1a1a1a; --surface: #242424; --surface2: #2e2e2e; --surface3: #383838;
+  --border: rgba(255,255,255,0.08); --text: #f0f0f0; --muted: #888;
+  --accent: #f5a623; --green: #4caf50; --red: #f44336; --blue: #2196f3;
+  --teal: #26c6da; --purple: #9c27b0;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:14px; }
+.screen { display:none; width:100%; min-height:100vh; }
+.screen.active { display:flex; flex-direction:column; }
+
+/* ===== WELCOME ===== */
+#screen-welcome { align-items:center; justify-content:center; text-align:center; padding:2rem; }
+.welcome-icon { font-size:3rem; margin-bottom:1rem; }
+.welcome-title { font-size:1.8rem; font-weight:600; margin-bottom:.5rem; }
+.welcome-sub { color:var(--muted); margin-bottom:2rem; line-height:1.7; }
+.mode-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; max-width:600px; width:100%; }
+.mode-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:1.5rem 1rem; cursor:pointer; transition:all .2s; }
+.mode-card:hover { border-color:var(--accent); background:var(--surface2); transform:translateY(-2px); }
+.mode-icon { font-size:2rem; margin-bottom:.75rem; }
+.mode-title { font-weight:600; font-size:13px; margin-bottom:.4rem; }
+.mode-desc { font-size:11px; color:var(--muted); line-height:1.5; }
+
+/* ===== POS LAYOUT ===== */
+#screen-pos { flex-direction:column; height:100vh; overflow:hidden; }
+.pos-header { background:#111; padding:.6rem 1rem; display:flex; align-items:center; gap:1rem; border-bottom:1px solid var(--border); flex-shrink:0; }
+.pos-header .logo { font-weight:600; color:var(--accent); font-size:15px; }
+.order-badge { background:var(--accent); color:#000; border-radius:20px; padding:2px 10px; font-size:11px; font-weight:600; }
+.pos-body { display:grid; grid-template-columns:160px 1fr 260px; flex:1; overflow:hidden; }
+
+/* Categories */
+.pos-cats { background:#111; border-right:1px solid var(--border); overflow-y:auto; }
+.cat-btn { width:100%; padding:12px 14px; text-align:left; background:none; border:none; border-bottom:1px solid var(--border); color:var(--muted); font-size:12px; font-weight:500; cursor:pointer; transition:all .15s; }
+.cat-btn:hover { background:var(--surface); color:var(--text); }
+.cat-btn.active { background:var(--accent); color:#000; }
+
+/* Items grid */
+.pos-items { padding:.75rem; overflow-y:auto; background:var(--surface); }
+.items-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.item-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 8px; cursor:pointer; text-align:center; transition:all .15s; }
+.item-btn:hover { background:var(--surface3); border-color:var(--accent); }
+.item-btn.selected { background:#2a1f00; border-color:var(--accent); }
+.item-btn.modifier { background:#1a1a2e; border-color:#3949ab; }
+.item-btn.modifier:hover { background:#242454; }
+.item-name { font-size:11px; font-weight:500; line-height:1.3; margin-bottom:4px; }
+.item-price { font-size:11px; color:var(--accent); font-weight:600; }
+.item-abbr { font-size:9px; color:var(--muted); font-family:'DM Mono',monospace; margin-top:2px; }
+
+/* Order summary */
+.pos-order { background:#111; border-left:1px solid var(--border); display:flex; flex-direction:column; }
+.order-header { padding:10px 12px; border-bottom:1px solid var(--border); }
+.order-title { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.order-lines { flex:1; overflow-y:auto; padding:8px; }
+.order-line { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; background:var(--surface); margin-bottom:4px; }
+.order-line-name { flex:1; font-size:12px; }
+.order-line-price { font-size:12px; color:var(--accent); font-weight:600; white-space:nowrap; }
+.order-line-del { width:18px; height:18px; border-radius:50%; background:var(--surface3); border:none; color:var(--muted); cursor:pointer; font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.order-line-del:hover { background:var(--red); color:white; }
+.order-footer { padding:10px 12px; border-top:1px solid var(--border); }
+.total-row { display:flex; justify-content:space-between; font-weight:600; font-size:15px; margin-bottom:10px; }
+.total-price { color:var(--accent); }
+.pos-btns { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.pos-btn { padding:10px; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
+.pos-btn.pay { background:var(--accent); color:#000; grid-column:1/-1; font-size:14px; padding:12px; }
+.pos-btn.clear { background:var(--surface3); color:var(--text); }
+.pos-btn.back-btn { background:var(--surface2); color:var(--muted); }
+.pos-btn:hover { filter:brightness(1.1); }
+
+/* Size selector */
+.size-popup { position:fixed; inset:0; background:rgba(0,0,0,.8); display:flex; align-items:center; justify-content:center; z-index:100; }
+.size-popup-inner { background:var(--surface); border-radius:16px; padding:1.5rem; min-width:260px; }
+.size-title { font-weight:600; margin-bottom:1rem; text-align:center; }
+.size-btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.size-btn { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); cursor:pointer; text-align:center; }
+.size-btn:hover { border-color:var(--accent); }
+.size-btn .sz-name { font-weight:600; font-size:13px; }
+.size-btn .sz-detail { font-size:11px; color:var(--muted); margin-top:2px; }
+.size-btn .sz-price { font-size:12px; color:var(--accent); margin-top:4px; }
+.size-cancel { width:100%; margin-top:8px; padding:10px; background:var(--surface3); border:none; border-radius:8px; color:var(--muted); cursor:pointer; font-size:12px; }
+
+/* ===== ORDER INCOMING ===== */
+#screen-order { align-items:center; justify-content:center; padding:2rem; text-align:center; }
+.order-bubble { background:var(--surface); border-radius:20px; padding:2rem; max-width:480px; width:100%; margin-bottom:1.5rem; }
+.customer-avatar { width:56px; height:56px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin:0 auto 1rem; }
+.order-text { font-size:1.1rem; line-height:1.7; color:var(--text); }
+.order-type-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:600; margin-top:.75rem; }
+.badge-ta { background:#1a3a2a; color:#4caf50; }
+.badge-di { background:#1a2a3a; color:#2196f3; }
+.order-actions { display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; }
+.action-btn { padding:12px 24px; border-radius:10px; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
+.action-btn.primary { background:var(--accent); color:#000; }
+.action-btn.secondary { background:var(--surface); color:var(--text); border:1px solid var(--border); }
+.action-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
+.play-again { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; cursor:pointer; background:none; border:none; margin-top:.5rem; }
+
+/* ===== DOCKET SCREEN ===== */
+#screen-docket { align-items:center; justify-content:flex-start; padding:1rem; overflow-y:auto; }
+.docket-wrap { max-width:680px; width:100%; }
+.docket-header-row { display:flex; gap:1rem; margin-bottom:1.5rem; align-items:flex-start; }
+.docket-paper { background:#fff; color:#111; border-radius:6px; padding:16px; font-family:'DM Mono',monospace; font-size:12px; line-height:1.8; min-width:200px; box-shadow:0 4px 20px rgba(0,0,0,.4); }
+.docket-top { font-size:10px; color:#666; border-bottom:1px dashed #ccc; padding-bottom:8px; margin-bottom:8px; }
+.docket-name { font-size:16px; font-weight:700; margin-bottom:4px; }
+.docket-item { margin-left:8px; }
+.docket-mod { margin-left:20px; font-size:10px; color:#555; }
+.cup-area { flex:1; }
+.cup-section-title { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.75rem; }
+.cups-row { display:flex; flex-wrap:wrap; gap:12px; }
+.cup-item { text-align:center; }
+.cup-svg-wrap { position:relative; display:inline-block; }
+.cup-text-overlay { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; font-family:'DM Mono',monospace; font-size:11px; line-height:1.4; font-weight:600; color:#222; width:80%; }
+.cup-label { font-size:10px; color:var(--muted); margin-top:4px; }
+
+/* Abbr table */
+.abbr-table { background:var(--surface); border-radius:12px; padding:1rem; margin-top:1rem; width:100%; }
+.abbr-title { font-size:12px; font-weight:600; color:var(--muted); margin-bottom:.75rem; }
+.abbr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; }
+.abbr-item { background:var(--surface2); border-radius:6px; padding:5px 8px; }
+.abbr-en { font-size:11px; color:var(--text); }
+.abbr-code { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); font-weight:600; }
+
+/* ===== RESULT SCREEN ===== */
+#screen-result { align-items:center; justify-content:center; padding:2rem; text-align:center; }
+.result-icon { font-size:3rem; margin-bottom:1rem; }
+.result-title { font-size:1.5rem; font-weight:600; margin-bottom:.5rem; }
+.result-detail { background:var(--surface); border-radius:12px; padding:1rem; max-width:400px; width:100%; margin:1rem auto; text-align:left; font-size:13px; line-height:1.8; }
+.result-row { display:flex; justify-content:space-between; }
+.result-row.correct { color:var(--green); }
+.result-row.wrong { color:var(--red); }
+
+/* ===== DOCKET READ SCREEN ===== */
+#screen-docket-read { padding:1.5rem; overflow-y:auto; }
+.docket-read-wrap { max-width:680px; margin:0 auto; }
+.docket-large { background:#fff; color:#111; border-radius:8px; padding:20px; font-family:'DM Mono',monospace; line-height:1.9; box-shadow:0 4px 20px rgba(0,0,0,.5); margin-bottom:1.5rem; }
+.q-section { background:var(--surface); border-radius:12px; padding:1rem; margin-bottom:1rem; }
+.q-title { font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; margin-bottom:.75rem; }
+.q-options { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.q-btn { padding:10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-size:12px; text-align:left; transition:all .15s; color:var(--text); }
+.q-btn:hover { border-color:var(--accent); }
+.q-btn.correct-ans { background:#1a3a1a; border-color:var(--green); color:var(--green); }
+.q-btn.wrong-ans { background:#3a1a1a; border-color:var(--red); color:var(--red); }
+
+/* scroll */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+/* Notification */
+.notif { position:fixed; top:1rem; right:1rem; background:var(--accent); color:#000; padding:10px 16px; border-radius:10px; font-weight:600; font-size:13px; z-index:999; animation:fadeNotif 2.5s forwards; }
+@keyframes fadeNotif { 0%{opacity:0;transform:translateY(-10px)} 15%{opacity:1;transform:translateY(0)} 75%{opacity:1} 100%{opacity:0} }
+
+/* Speaking animation */
+.speaking-dots { display:inline-flex; gap:4px; align-items:center; }
+.dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:bounce .8s infinite; }
+.dot:nth-child(2){animation-delay:.15s}
+.dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* Nav bar */
+.nav-bar { background:#111; border-bottom:1px solid var(--border); padding:.6rem 1rem; display:flex; align-items:center; gap:1rem; flex-shrink:0; }
+.nav-back { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text); font-size:12px; cursor:pointer; }
+.nav-title { font-weight:600; font-size:14px; }
+.nav-sub { font-size:11px; color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+
+<!-- ===== WELCOME ===== -->
+<div id="screen-welcome" class="screen active">
+  <div class="welcome-icon">☕</div>
+  <h1 class="welcome-title">POS 트레이너</h1>
+  <p class="welcome-sub">호주 멜버른 카페 실전 훈련<br>주문을 듣고 → POS 찍고 → 도켓 읽고 → 컵에 적기</p>
+  <div class="mode-grid">
+    <div class="mode-card" onclick="startMode('pos')">
+      <div class="mode-icon">🖥️</div>
+      <div class="mode-title">POS 주문 훈련</div>
+      <div class="mode-desc">손님 주문 음성 듣고 POS 화면을 직접 눌러 찍는 연습</div>
+    </div>
+    <div class="mode-card" onclick="startMode('docket')">
+      <div class="mode-icon">🧾</div>
+      <div class="mode-title">도켓 읽기</div>
+      <div class="mode-desc">실제 도켓을 보고 내용을 파악하고 질문에 답하는 연습</div>
+    </div>
+    <div class="mode-card" onclick="startMode('cup')">
+      <div class="mode-icon">🥤</div>
+      <div class="mode-title">컵 적기 연습</div>
+      <div class="mode-desc">주문을 듣고 컵에 올바른 약어로 적는 연습</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ORDER INCOMING ===== -->
+<div id="screen-order" class="screen">
+  <div class="order-bubble">
+    <div class="customer-avatar" id="order-avatar">👤</div>
+    <div id="order-text" class="order-text">주문을 불러오는 중...</div>
+    <div id="order-type-badge" class="order-type-badge badge-ta">Takeaway</div>
+  </div>
+  <div id="speaking-indicator" style="margin-bottom:1rem;display:none">
+    <div class="speaking-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <span style="font-size:12px;color:var(--muted);margin-left:8px;">음성 재생 중...</span>
+  </div>
+  <div class="order-actions">
+    <button class="action-btn secondary play-again" onclick="replayOrder()">🔊 다시 듣기</button>
+    <button class="action-btn primary" onclick="goToPOS()">POS 찍으러 가기 →</button>
+  </div>
+  <button class="action-btn secondary" style="margin-top:.75rem;font-size:12px" onclick="showScreen('screen-welcome')">← 메인으로</button>
+</div>
+
+<!-- ===== POS SCREEN ===== -->
+<div id="screen-pos" class="screen">
+  <div class="pos-header">
+    <span class="logo">▣ Square POS</span>
+    <span id="pos-order-badge" class="order-badge">TA · Will</span>
+    <span style="margin-left:auto;font-size:11px;color:var(--muted)" id="pos-hint"></span>
+    <button onclick="showScreen('screen-order')" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--muted);font-size:11px;cursor:pointer">← 주문 다시보기</button>
+  </div>
+  <div class="pos-body">
+    <div class="pos-cats" id="pos-cats"></div>
+    <div class="pos-items" id="pos-items">
+      <div class="items-grid" id="items-grid"></div>
+    </div>
+    <div class="pos-order">
+      <div class="order-header"><div class="order-title">주문 내역</div></div>
+      <div class="order-lines" id="order-lines"></div>
+      <div class="order-footer">
+        <div class="total-row"><span>Total</span><span class="total-price" id="total-display">$0.00</span></div>
+        <div class="pos-btns">
+          <button class="pos-btn clear" onclick="clearOrder()">Clear</button>
+          <button class="pos-btn back-btn" onclick="removeLastItem()">⌫ 지우기</button>
+          <button class="pos-btn pay" onclick="checkOrder()">✓ 확인 & Pay</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DOCKET + CUP SCREEN ===== -->
+<div id="screen-docket" class="screen">
+  <div class="docket-wrap">
+    <div class="nav-bar" style="margin-bottom:1rem;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+      <button class="nav-back" onclick="showScreen('screen-welcome')">← 메인</button>
+      <span class="nav-title">도켓 & 컵 작성</span>
+      <span class="nav-sub">주문을 확인하고 컵에 적어보세요</span>
+    </div>
+    <div class="docket-header-row">
+      <div>
+        <div class="cup-section-title" style="margin-bottom:.5rem">📄 도켓</div>
+        <div class="docket-paper" id="docket-paper">도켓 로딩...</div>
+      </div>
+      <div class="cup-area">
+        <div class="cup-section-title">🥤 컵에 적기 (탭하면 정답 보기)</div>
+        <div class="cups-row" id="cups-row"></div>
+      </div>
+    </div>
+    <div class="abbr-table">
+      <div class="abbr-title">📋 약어 참고표</div>
+      <div class="abbr-grid" id="abbr-grid"></div>
+    </div>
+    <div style="display:flex;gap:1rem;margin-top:1rem;flex-wrap:wrap">
+      <button class="action-btn primary" onclick="generateNewOrder()">🔀 새 주문</button>
+      <button class="action-btn secondary" onclick="showScreen('screen-welcome')">← 메인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DOCKET READ SCREEN ===== -->
+<div id="screen-docket-read" class="screen">
+  <div class="docket-read-wrap">
+    <div class="nav-bar" style="margin-bottom:1rem;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+      <button class="nav-back" onclick="showScreen('screen-welcome')">← 메인</button>
+      <span class="nav-title">도켓 읽기 훈련</span>
+      <button class="action-btn primary" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="generateDocketQuiz()">🔀 새 도켓</button>
+    </div>
+    <div class="docket-large" id="docket-quiz-paper"></div>
+    <div id="quiz-questions"></div>
+  </div>
+</div>
+
+<!-- ===== RESULT SCREEN ===== -->
+<div id="screen-result" class="screen">
+  <div id="result-icon" class="result-icon">✅</div>
+  <div id="result-title" class="result-title">정확해요!</div>
+  <div id="result-detail" class="result-detail"></div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;margin-top:1rem">
+    <button class="action-btn primary" onclick="generateNewOrder()">🔀 새 주문</button>
+    <button class="action-btn secondary" onclick="showScreen('screen-welcome')">← 메인</button>
+  </div>
+</div>
+
+<!-- Size Popup -->
+<div id="size-popup" class="size-popup" style="display:none">
+  <div class="size-popup-inner">
+    <div class="size-title" id="size-popup-title">사이즈 선택</div>
+    <div class="size-btns" id="size-btns"></div>
+    <button class="size-cancel" onclick="closeSizePopup()">취소</button>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+const MENU = {
+  coffee: [
+    {name:'Flat White', abbr:'FW', sizes:{S:5.5,M:6.0,L:6.5}, shots:{S:1,M:2,L:3}, dineIn:'ceramic', ta:'8oz/12oz/16oz'},
+    {name:'Latte', abbr:'L', sizes:{S:5.5,M:6.0,L:6.5}, shots:{S:1,M:2,L:3}, dineIn:'glass'},
+    {name:'Cappuccino', abbr:'C', sizes:{S:5.5,M:6.0,L:6.5}, shots:{S:1,M:2,L:3}, extra:'choc powder'},
+    {name:'Long Black', abbr:'LB', sizes:{S:5.0,M:5.5,L:6.0}, shots:{S:2,M:3,L:4}, note:'+1 shot always'},
+    {name:'Mocha', abbr:'M', sizes:{S:6.0,M:6.5,L:7.0}, shots:{S:1,M:2,L:3}},
+    {name:'Hot Chocolate', abbr:'HC', sizes:{S:5.5,M:6.0,L:6.5}, noShot:true},
+    {name:'Chai Latte', abbr:'Chai', sizes:{S:6.0,M:6.5,L:7.0}, noShot:true},
+    {name:'Matcha Latte', abbr:'MAT', sizes:{S:6.5,M:7.0,L:7.5}, noShot:true},
+    {name:'Espresso', abbr:'Esp', price:4.0, fixed:true, noSize:true},
+    {name:'Double Espresso', abbr:'Dbl', price:4.5, fixed:true, noSize:true},
+    {name:'Piccolo', abbr:'Pic', price:4.5, fixed:true, noSize:true},
+    {name:'Magic', abbr:'Mag', price:5.0, fixed:true, noSize:true},
+    {name:'Macchiato (S)', abbr:'Mac', price:4.5, fixed:true, noSize:true},
+    {name:'Babyccino', abbr:'BBC', price:2.0, fixed:true, noSize:true, noShot:true},
+    {name:'Dirty Chai', abbr:'ChD', sizes:{S:6.5,M:7.0,L:7.5}, noShot:false},
+    {name:'Iced Latte', abbr:'IL', sizes:{S:6.5,M:7.0,L:7.5}, shots:{S:1,M:2,L:3}},
+    {name:'Iced Long Black', abbr:'ILB', sizes:{M:6.0,L:6.5}},
+    {name:'Iced Matcha', abbr:'IM', sizes:{M:7.0,L:7.5}, noShot:true},
+    {name:'Cold Brew', abbr:'CB', price:6.5, fixed:true, noSize:true},
+    {name:'Batch Brew', abbr:'BB', price:5.0, fixed:true, noSize:true},
+  ],
+  modifiers: [
+    {name:'Oat Milk', abbr:'O', price:0.8, mod:true},
+    {name:'Almond Milk', abbr:'A', price:0.8, mod:true},
+    {name:'Soy Milk', abbr:'Y', price:0.6, mod:true},
+    {name:'Lactose Free', abbr:'LF', price:0.5, mod:true},
+    {name:'Skim Milk', abbr:'SK', price:0.0, mod:true},
+    {name:'Extra Shot', abbr:'X1', price:0.5, mod:true},
+    {name:'Extra Extra Shot', abbr:'X2', price:1.0, mod:true},
+    {name:'Decaf', abbr:'Def', price:0.5, mod:true},
+    {name:'Extra Hot', abbr:'HOT', price:0.0, mod:true},
+    {name:'Warm', abbr:'Warm', price:0.0, mod:true},
+    {name:'Half Sugar', abbr:'0.5S', price:0.0, mod:true},
+    {name:'1 Sugar', abbr:'1S', price:0.0, mod:true},
+    {name:'Honey', abbr:'+H', price:0.5, mod:true},
+    {name:'1 Equal', abbr:'=', price:0.0, mod:true},
+    {name:'Vanilla Syrup', abbr:'Van', price:0.5, mod:true},
+    {name:'Caramel Syrup', abbr:'Car', price:0.5, mod:true},
+    {name:'Hazelnut Syrup', abbr:'Haz', price:0.5, mod:true},
+    {name:'3/4 Full', abbr:'3/4F', price:0.0, mod:true},
+    {name:'Strong', abbr:'St', price:0.0, mod:true},
+    {name:'Extra Froth', abbr:'XF', price:0.0, mod:true},
+  ],
+  food: [
+    {name:'Big Breakfast', abbr:'BB', price:24.0, fixed:true},
+    {name:'Smashed Avocado', abbr:'SAvo', price:22.0, fixed:true},
+    {name:'Eggs Benedict', abbr:'EB', price:24.0, fixed:true},
+    {name:'Corn Fritters', abbr:'CF', price:22.0, fixed:true},
+    {name:'Scrambled Eggs', abbr:'ScEgg', price:18.0, fixed:true},
+    {name:'Pancakes', abbr:'Pan', price:20.0, fixed:true},
+    {name:'French Toast', abbr:'FT', price:20.0, fixed:true},
+    {name:'Banana Bread', abbr:'BanBrd', price:8.0, fixed:true},
+    {name:'Sourdough Toast', abbr:'SDT', price:9.0, fixed:true},
+    {name:'Sausage Roll', abbr:'SR', price:7.5, fixed:true},
+    {name:'Beef Pie', abbr:'BP', price:8.5, fixed:true},
+    {name:'Croissant', abbr:'Croi', price:5.5, fixed:true},
+    {name:'Almond Croissant', abbr:'ACroi', price:6.5, fixed:true},
+    {name:'Blueberry Muffin', abbr:'Muf', price:5.0, fixed:true},
+    {name:'Chicken Parma', abbr:'Parma', price:26.0, fixed:true},
+  ],
+  cold: [
+    {name:'OJ (Orange Juice)', abbr:'OJ', price:5.5, fixed:true},
+    {name:'Cold Press Red', abbr:'CPR', price:8.0, fixed:true},
+    {name:'Cold Press Green', abbr:'CPG', price:8.0, fixed:true},
+    {name:'Milkshake', abbr:'MS', price:9.0, fixed:true},
+    {name:'Sparkling Water', abbr:'Spark', price:4.0, fixed:true},
+    {name:'Still Water (bottle)', abbr:'Still', price:4.0, fixed:true},
+    {name:'Lemonade', abbr:'Lem', price:5.0, fixed:true},
+    {name:'Affogato', abbr:'Aff', price:8.0, fixed:true},
+    {name:'Iced Coffee (w ice cream)', abbr:'IC', price:8.0, fixed:true},
+    {name:'Iced Chocolate', abbr:'ICH', price:8.0, fixed:true},
+  ]
+};
+
+const CATEGORIES = [
+  {id:'coffee', label:'Coffee', icon:'☕'},
+  {id:'modifiers', label:'Modifiers', icon:'⚙️'},
+  {id:'food', label:'Food', icon:'🍳'},
+  {id:'cold', label:'Cold Drinks', icon:'🧊'},
+];
+
+const ABBR_REF = [
+  {en:'Flat White', code:'FW'}, {en:'Latte', code:'L'}, {en:'Cappuccino', code:'C or Cap'},
+  {en:'Long Black', code:'LB'}, {en:'Mocha', code:'M'}, {en:'Hot Chocolate', code:'HC'},
+  {en:'Chai Latte', code:'Chai'}, {en:'Matcha Latte', code:'MAT'}, {en:'Piccolo', code:'Pic'},
+  {en:'Magic', code:'Mag'}, {en:'Dirty Chai', code:'ChD'}, {en:'Iced Latte', code:'IL'},
+  {en:'Small (8oz)', code:'S'}, {en:'Medium (12oz)', code:'M'}, {en:'Large (16oz)', code:'L'},
+  {en:'Oat Milk', code:'O'}, {en:'Almond', code:'A'}, {en:'Soy', code:'Y/S'},
+  {en:'Lactose Free', code:'LF'}, {en:'Skim', code:'SK'}, {en:'Extra Shot', code:'X1'},
+  {en:'Extra Hot', code:'HOT'}, {en:'Decaf', code:'Def'}, {en:'Sugar', code:'1S'},
+  {en:'Equal', code:'='}, {en:'Honey', code:'+H'}, {en:'Vanilla', code:'Van'},
+  {en:'Takeaway', code:'T/A'}, {en:'Dine-in', code:'DI'}, {en:'Strong', code:'St'},
+];
+
+// Random order templates
+const CUSTOMERS = [
+  {name:'Sarah', avatar:'👩'}, {name:'James', avatar:'👨'}, {name:'Emily', avatar:'👩‍🦱'},
+  {name:'Liam', avatar:'🧔'}, {name:'Olivia', avatar:'👩‍🦰'}, {name:'Noah', avatar:'👦'},
+  {name:'Ava', avatar:'👧'}, {name:'Will', avatar:'👨‍🦳'}, {name:'Mia', avatar:'👩‍🦳'},
+  {name:'Jack', avatar:'🧑'}, {name:'Zoe', avatar:'👩'}, {name:'Tom', avatar:'👨'},
+];
+
+const ORDER_TEMPLATES = [
+  // Simple TA
+  o => `Can I get a ${o.sizeWord} flat white${o.milkStr} takeaway please?`,
+  o => `${o.sizeWord} latte${o.milkStr} to go, thanks.`,
+  o => `Can I have a ${o.sizeWord} cappuccino takeaway?${o.extraStr}`,
+  o => `A ${o.sizeWord} long black${o.hotStr} takeaway please.`,
+  o => `Can I get a ${o.sizeWord} chai latte${o.milkStr} to go?`,
+  o => `${o.sizeWord} hot chocolate please. Takeaway.${o.sugarStr}`,
+  o => `I'll have a ${o.sizeWord} matcha latte${o.milkStr} takeaway please.`,
+  o => `Can I get a piccolo and a ${o.sizeWord} long black? Both takeaway.`,
+  // Dine in
+  o => `${o.sizeWord} flat white${o.milkStr} for dine in please.`,
+  o => `Can we get a ${o.sizeWord} latte${o.milkStr} and a ${o.food}? Dine in, table ${o.table}.`,
+  // With modifiers
+  o => `${o.sizeWord} latte with oat milk${o.hotStr}, takeaway.`,
+  o => `Can I get a ${o.sizeWord} cappuccino, extra hot, almond milk? Takeaway.`,
+  o => `I'll have a large flat white, extra shot, soy milk. Takeaway please.`,
+  o => `Can I get a medium latte, half sugar, and a banana bread? Takeaway.`,
+  o => `${o.sizeWord} long black, extra hot. Takeaway please.`,
+  // Complex
+  o => `Can I get two medium lattes, one with oat milk and one regular? Both takeaway.`,
+  o => `A large flat white, decaf, and a ${o.food} please. Dine in.`,
+  o => `Medium dirty chai, oat milk, one sugar. Takeaway.`,
+  o => `Can I have a small flat white, extra strong, and a croissant? Takeaway.`,
+  o => `I'd like a large iced latte with almond milk, and a ${o.food}. Takeaway please.`,
+];
+
+const FOODS = ['banana bread', 'sourdough toast', 'croissant', 'blueberry muffin', 'sausage roll', 'beef pie'];
+const SIZES = ['small','medium','large'];
+const MILKS = ['with oat milk','with almond milk','with soy milk','with lactose free milk','with skim milk',''];
+const EXTRAS = [' and extra shot','',''];
+const HOTS = [' extra hot','',''];
+const SUGARS = [' One sugar.',' Half sugar.',''];
+const TABLES = [2,3,4,5,7,8,9,12,15];
+
+// App State
+let currentMode = 'pos';
+let currentOrder = null;
+let currentCustomer = null;
+let posOrder = [];
+let selectedCategory = 'coffee';
+let pendingItem = null;
+
+// ===== HELPERS =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function rand(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function fmt(n) { return '$' + n.toFixed(2); }
+
+function speak(text, onEnd) {
+  if (!window.speechSynthesis) { if(onEnd) onEnd(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-AU'; u.rate = 0.85; u.pitch = 1.05;
+  const voices = window.speechSynthesis.getVoices();
+  const v = voices.find(v => v.lang==='en-AU') || voices.find(v => v.lang.startsWith('en'));
+  if(v) u.voice = v;
+  if(onEnd) u.onend = onEnd;
+  const ind = document.getElementById('speaking-indicator');
+  if(ind) ind.style.display='flex';
+  u.onend = () => { if(ind) ind.style.display='none'; if(onEnd) onEnd(); };
+  window.speechSynthesis.speak(u);
+}
+
+function showNotif(msg) {
+  const n = document.createElement('div');
+  n.className='notif'; n.textContent=msg;
+  document.body.appendChild(n);
+  setTimeout(()=>n.remove(), 2800);
+}
+
+// ===== GENERATE ORDER =====
+function generateOrder() {
+  const sizeKey = rand(['S','M','L']);
+  const sizeWord = sizeKey==='S'?'small':sizeKey==='M'?'medium':'large';
+  const milkStr = rand(MILKS);
+  const extraStr = rand(EXTRAS);
+  const hotStr = rand(HOTS);
+  const sugarStr = rand(SUGARS);
+  const food = rand(FOODS);
+  const table = rand(TABLES);
+  const isDineIn = Math.random() < 0.3;
+  const template = rand(ORDER_TEMPLATES);
+  const text = template({sizeWord,milkStr,extraStr,hotStr,sugarStr,food,table});
+  const customer = rand(CUSTOMERS);
+  return { text, customer, isDineIn, sizeKey, milkStr, food, table };
+}
+
+function startMode(mode) {
+  currentMode = mode;
+  if(mode === 'pos') {
+    generateNewOrder();
+  } else if(mode === 'docket') {
+    showScreen('screen-docket-read');
+    generateDocketQuiz();
+  } else if(mode === 'cup') {
+    showScreen('screen-docket');
+    generateCupOrder();
+  }
+}
+
+function generateNewOrder() {
+  currentOrder = generateOrder();
+  currentCustomer = currentOrder.customer;
+  posOrder = [];
+
+  // Show order screen
+  document.getElementById('order-avatar').textContent = currentOrder.customer.avatar;
+  document.getElementById('order-text').textContent = currentOrder.customer.name + ': "' + currentOrder.text + '"';
+  const badge = document.getElementById('order-type-badge');
+  badge.textContent = currentOrder.isDineIn ? `Dine-in · Table ${currentOrder.table}` : 'Takeaway';
+  badge.className = 'order-type-badge ' + (currentOrder.isDineIn ? 'badge-di' : 'badge-ta');
+
+  showScreen('screen-order');
+  setTimeout(() => speak(currentOrder.customer.name + ' says: ' + currentOrder.text), 400);
+}
+
+function replayOrder() {
+  speak(currentOrder.customer.name + ' says: ' + currentOrder.text);
+}
+
+// ===== POS =====
+function goToPOS() {
+  buildPOS();
+  showScreen('screen-pos');
+  document.getElementById('pos-order-badge').textContent =
+    currentOrder.isDineIn ? `DI · Table ${currentOrder.table}` : `T/A · ${currentOrder.customer.name}`;
+  document.getElementById('pos-hint').textContent = 'Order: "' + currentOrder.text.substring(0,50) + (currentOrder.text.length>50?'...':'"');
+  renderOrderLines();
+}
+
+function buildPOS() {
+  // Build category buttons
+  const catsEl = document.getElementById('pos-cats');
+  catsEl.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const b = document.createElement('button');
+    b.className = 'cat-btn' + (cat.id===selectedCategory?' active':'');
+    b.textContent = cat.icon + ' ' + cat.label;
+    b.onclick = () => { selectedCategory=cat.id; buildPOS(); };
+    catsEl.appendChild(b);
+  });
+  // Build items
+  const grid = document.getElementById('items-grid');
+  grid.innerHTML = '';
+  const items = MENU[selectedCategory] || [];
+  items.forEach(item => {
+    const b = document.createElement('div');
+    b.className = 'item-btn' + (item.mod?' modifier':'');
+    const priceStr = item.fixed ? fmt(item.price) : `from ${fmt(Math.min(...Object.values(item.sizes)))}`;
+    b.innerHTML = `<div class="item-name">${item.name}</div><div class="item-price">${priceStr}</div><div class="item-abbr">${item.abbr||''}</div>`;
+    b.onclick = () => selectItem(item);
+    grid.appendChild(b);
+  });
+}
+
+function selectItem(item) {
+  if(item.mod) {
+    // Add modifier to last coffee item or as standalone
+    if(posOrder.length > 0) {
+      const last = posOrder[posOrder.length-1];
+      if(!last.mods) last.mods = [];
+      last.mods.push(item);
+      last.total = (last.basePrice||0) + last.mods.reduce((s,m)=>s+m.price,0);
+    }
+    renderOrderLines();
+    return;
+  }
+  if(item.noSize || item.fixed) {
+    addToOrder({...item, size:null, basePrice:item.price, total:item.price, mods:[]});
+    return;
+  }
+  // Show size popup
+  pendingItem = item;
+  const sizes = item.sizes;
+  const popup = document.getElementById('size-popup');
+  document.getElementById('size-popup-title').textContent = item.name + ' - 사이즈 선택';
+  const btns = document.getElementById('size-btns');
+  btns.innerHTML = '';
+  Object.entries(sizes).forEach(([sz, price]) => {
+    const ozMap = {S:'8oz',M:'12oz',L:'16oz'};
+    const shotMap = item.shots || {};
+    const b = document.createElement('div');
+    b.className = 'size-btn';
+    b.innerHTML = `<div class="sz-name">${sz==='S'?'Small':sz==='M'?'Medium':'Large'}</div><div class="sz-detail">${ozMap[sz]||''}${shotMap[sz]?' · '+shotMap[sz]+' shot':''}</div><div class="sz-price">${fmt(price)}</div>`;
+    b.onclick = () => { closeSizePopup(); addToOrder({...item, size:sz, basePrice:price, total:price, mods:[]}); };
+    btns.appendChild(b);
+  });
+  popup.style.display='flex';
+}
+
+function closeSizePopup() { document.getElementById('size-popup').style.display='none'; }
+
+function addToOrder(item) {
+  posOrder.push(item);
+  renderOrderLines();
+  showNotif(`+ ${item.name}${item.size?' ('+item.size+')':''}`);
+}
+
+function renderOrderLines() {
+  const el = document.getElementById('order-lines');
+  el.innerHTML = '';
+  let total = 0;
+  posOrder.forEach((item, i) => {
+    const line = document.createElement('div');
+    line.className = 'order-line';
+    const szLabel = item.size ? ` (${item.size==='S'?'S':item.size==='M'?'M':'L'})` : '';
+    const modStr = (item.mods||[]).map(m=>m.name).join(', ');
+    line.innerHTML = `
+      <div class="order-line-name">${item.name}${szLabel}${modStr?'<br><span style="font-size:10px;color:var(--muted)">+ '+modStr+'</span>':''}</div>
+      <div class="order-line-price">${fmt(item.total)}</div>
+      <button class="order-line-del" onclick="removeItem(${i})">✕</button>`;
+    el.appendChild(line);
+    total += item.total;
+    // surcharge
+    if(item.mods) item.mods.forEach(m => total += 0);
+  });
+  document.getElementById('total-display').textContent = fmt(total);
+}
+
+function removeItem(i) { posOrder.splice(i,1); renderOrderLines(); }
+function removeLastItem() { if(posOrder.length>0){ posOrder.pop(); renderOrderLines(); } }
+function clearOrder() { posOrder=[]; renderOrderLines(); }
+
+function checkOrder() {
+  if(posOrder.length===0) { showNotif('주문 내역이 비어있어요!'); return; }
+  const total = posOrder.reduce((s,i)=>s+i.total,0);
+  // Show result
+  showScreen('screen-result');
+  document.getElementById('result-icon').textContent = '✅';
+  document.getElementById('result-title').textContent = '주문 완료!';
+  document.getElementById('result-detail').innerHTML = `
+    <div class="result-row"><span>주문 타입</span><span>${currentOrder.isDineIn?'Dine-in · Table '+currentOrder.table:'Takeaway'}</span></div>
+    <div class="result-row"><span>손님 이름</span><span>${currentOrder.customer.name}</span></div>
+    <div class="result-row"><span>항목 수</span><span>${posOrder.length}개</span></div>
+    <div class="result-row"><span>Total</span><span style="color:var(--accent);font-weight:600">${fmt(total)}</span></div>
+    <hr style="border-color:var(--border);margin:.75rem 0">
+    <div style="font-size:11px;color:var(--muted)">원래 주문:</div>
+    <div style="font-size:12px;margin-top:.4rem;line-height:1.7">${currentOrder.customer.name}: "${currentOrder.text}"</div>
+  `;
+  // Show docket screen after
+  setTimeout(() => {
+    buildDocketFromOrder();
+    showScreen('screen-docket');
+  }, 2000);
+}
+
+// ===== DOCKET & CUP =====
+function buildDocketFromOrder() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-AU');
+  const timeStr = now.toLocaleTimeString('en-AU', {hour:'2-digit',minute:'2-digit'});
+  const isDI = currentOrder.isDineIn;
+  const name = currentOrder.customer.name;
+  let docketHTML = `<div class="docket-top">${dateStr} &nbsp; ${timeStr}<br>Square Register 0475</div>`;
+  if(isDI) {
+    docketHTML += `<div style="font-size:11px;color:#666;margin-bottom:4px">EAT IN</div>`;
+    docketHTML += `<div class="docket-name">#T${currentOrder.table}</div>`;
+  } else {
+    docketHTML += `<div style="font-size:11px;color:#666;margin-bottom:4px">TAKE TAKE TAKE AWAY</div>`;
+    docketHTML += `<div class="docket-name">${name}</div>`;
+  }
+  posOrder.forEach(item => {
+    const szMap = {S:'Small (8oz)',M:'Medium (12oz)',L:'Large (16oz)'};
+    docketHTML += `<div class="docket-item">1 × ${item.name}${item.size?' · '+szMap[item.size]:''}</div>`;
+    (item.mods||[]).forEach(m => {
+      docketHTML += `<div class="docket-mod">+ ${m.name}</div>`;
+    });
+  });
+  const total = posOrder.reduce((s,i)=>s+i.total,0);
+  docketHTML += `<div style="border-top:1px dashed #ccc;margin-top:8px;padding-top:6px;text-align:right;font-weight:700">TOTAL: ${fmt(total)}</div>`;
+  document.getElementById('docket-paper').innerHTML = docketHTML;
+
+  // Cups
+  buildCups();
+  buildAbbrTable();
+}
+
+function buildCups() {
+  const cupsEl = document.getElementById('cups-row');
+  cupsEl.innerHTML = '';
+  const coffeeItems = posOrder.filter(i => !['food','cold'].some(c => MENU[c].find(m=>m.name===i.name)));
+  if(coffeeItems.length===0) {
+    cupsEl.innerHTML = '<span style="color:var(--muted);font-size:12px">커피 아이템 없음</span>';
+    return;
+  }
+  coffeeItems.forEach(item => {
+    const isDI = currentOrder.isDineIn;
+    // Build cup text
+    let lines = [];
+    const abbr = item.abbr || item.name.slice(0,3).toUpperCase();
+    const szAbbr = item.size ? item.size : '';
+    lines.push(abbr + (szAbbr?' '+szAbbr:''));
+    (item.mods||[]).forEach(m => lines.push(m.abbr));
+    if(!isDI) lines.push(currentOrder.customer.name.slice(0,4));
+
+    const answer = lines.join('\n');
+    const cup = document.createElement('div');
+    cup.className = 'cup-item';
+    const isLarge = item.size==='L';
+    const isMed = item.size==='M';
+    const h = isLarge?110:isMed?95:80;
+    const w = isLarge?80:isMed?70:62;
+
+    cup.innerHTML = `
+      <div class="cup-svg-wrap" onclick="this.querySelector('.cup-text-overlay').style.opacity='1'" title="탭해서 정답 보기">
+        <svg width="${w}" height="${h}" viewBox="0 0 80 ${h}" fill="none">
+          <path d="M12 8 L68 8 L62 ${h-4} L18 ${h-4} Z" fill="#f8f8f8" stroke="#ccc" stroke-width="1.5"/>
+          <rect x="10" y="4" width="60" height="10" rx="4" fill="#e0e0e0" stroke="#ccc" stroke-width="1"/>
+        </svg>
+        <div class="cup-text-overlay" style="opacity:0;transition:opacity .3s">${answer}</div>
+      </div>
+      <div class="cup-label">${item.name}${item.size?' ('+item.size+')':''}</div>
+    `;
+    cupsEl.appendChild(cup);
+  });
+}
+
+function buildAbbrTable() {
+  const grid = document.getElementById('abbr-grid');
+  grid.innerHTML = '';
+  ABBR_REF.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'abbr-item';
+    div.innerHTML = `<div class="abbr-en">${item.en}</div><div class="abbr-code">${item.code}</div>`;
+    grid.appendChild(div);
+  });
+}
+
+// Cup only mode
+function generateCupOrder() {
+  currentOrder = generateOrder();
+  currentCustomer = currentOrder.customer;
+  // Build fake posOrder from order text
+  posOrder = buildFakePosFromText(currentOrder);
+  buildDocketFromOrder();
+}
+
+function buildFakePosFromText(order) {
+  const text = order.text.toLowerCase();
+  const items = [];
+  const sizeMap = {small:'S',medium:'M',large:'L'};
+  const sz = text.includes('small')?'S':text.includes('large')?'L':'M';
+
+  if(text.includes('flat white')) {
+    const item = MENU.coffee.find(i=>i.name==='Flat White');
+    const base = item.sizes[sz];
+    const mods = getMods(text);
+    items.push({...item,size:sz,basePrice:base,total:base+mods.reduce((s,m)=>s+m.price,0),mods});
+  }
+  if(text.includes('latte') && !text.includes('chai') && !text.includes('matcha') && !text.includes('iced')) {
+    const item = MENU.coffee.find(i=>i.name==='Latte');
+    const base = item.sizes[sz];
+    const mods = getMods(text);
+    items.push({...item,size:sz,basePrice:base,total:base+mods.reduce((s,m)=>s+m.price,0),mods});
+  }
+  if(text.includes('cappuccino')) {
+    const item = MENU.coffee.find(i=>i.name==='Cappuccino');
+    const base = item.sizes[sz];
+    const mods = getMods(text);
+    items.push({...item,size:sz,basePrice:base,total:base+mods.reduce((s,m)=>s+m.price,0),mods});
+  }
+  if(text.includes('long black')) {
+    const item = MENU.coffee.find(i=>i.name==='Long Black');
+    const base = item.sizes[sz];
+    items.push({...item,size:sz,basePrice:base,total:base,mods:[]});
+  }
+  if(text.includes('chai latte') || (text.includes('chai') && !text.includes('dirty'))) {
+    const item = MENU.coffee.find(i=>i.name==='Chai Latte');
+    const base = item.sizes[sz];
+    const mods = getMods(text);
+    items.push({...item,size:sz,basePrice:base,total:base+mods.reduce((s,m)=>s+m.price,0),mods});
+  }
+  if(text.includes('matcha')) {
+    const item = MENU.coffee.find(i=>i.name==='Matcha Latte');
+    const base = item.sizes[sz];
+    const mods = getMods(text);
+    items.push({...item,size:sz,basePrice:base,total:base+mods.reduce((s,m)=>s+m.price,0),mods});
+  }
+  if(text.includes('hot chocolate')) {
+    const item = MENU.coffee.find(i=>i.name==='Hot Chocolate');
+    const base = item.sizes[sz];
+    items.push({...item,size:sz,basePrice:base,total:base,mods:[]});
+  }
+  if(text.includes('piccolo')) {
+    const item = MENU.coffee.find(i=>i.name==='Piccolo');
+    items.push({...item,size:null,basePrice:item.price,total:item.price,mods:[]});
+  }
+  if(items.length===0) {
+    const item = MENU.coffee.find(i=>i.name==='Latte');
+    const base = item.sizes[sz];
+    items.push({...item,size:sz,basePrice:base,total:base,mods:[]});
+  }
+  return items;
+}
+
+function getMods(text) {
+  const mods = [];
+  const modMap = [
+    {kw:'oat',name:'Oat Milk',abbr:'O',price:.8},
+    {kw:'almond',name:'Almond Milk',abbr:'A',price:.8},
+    {kw:'soy',name:'Soy Milk',abbr:'Y',price:.6},
+    {kw:'lactose',name:'Lactose Free',abbr:'LF',price:.5},
+    {kw:'skim',name:'Skim Milk',abbr:'SK',price:0},
+    {kw:'extra shot',name:'Extra Shot',abbr:'X1',price:.5},
+    {kw:'extra hot',name:'Extra Hot',abbr:'HOT',price:0},
+    {kw:'decaf',name:'Decaf',abbr:'Def',price:.5},
+    {kw:'half sugar',name:'Half Sugar',abbr:'0.5S',price:0},
+    {kw:'one sugar',name:'1 Sugar',abbr:'1S',price:0},
+    {kw:'1 sugar',name:'1 Sugar',abbr:'1S',price:0},
+    {kw:'honey',name:'Honey',abbr:'+H',price:.5},
+    {kw:'vanilla',name:'Vanilla',abbr:'Van',price:.5},
+    {kw:'strong',name:'Strong',abbr:'St',price:0},
+  ];
+  modMap.forEach(m => { if(text.includes(m.kw)) mods.push(m); });
+  return mods;
+}
+
+// ===== DOCKET QUIZ =====
+const DOCKET_QUIZZES = [
+  {
+    name:'Will', type:'ta', date:'27 May 2025', time:'09:32:46',
+    items:['1 × Flat White', '  12oz', '  Extra shot', '  Own Cup'],
+    q:[
+      {q:'이 주문은 어떤 타입이에요?', opts:['Dine-in','Takeaway','Table order','Staff order'], ans:1},
+      {q:'커피를 어떤 잔에 서빙해야 해요?', opts:['Regular TA cup','Ceramic cup (dine-in)','손님이 가져온 텀블러','Glass'], ans:2},
+      {q:'Shot은 총 몇 개 들어가야 해요? (Medium Flat White 기본 2샷 + extra shot)', opts:['1샷','2샷','3샷','4샷'], ans:2},
+    ]
+  },
+  {
+    name:'Table 5', type:'di', date:'15 Jun 2025', time:'10:12:03',
+    items:['1 × Latte (Medium)', '  Oat milk', '1 × Cappuccino (Small)', '1 × Banana Bread', '  toasted'],
+    q:[
+      {q:'이건 Dine-in인가요, Takeaway인가요?', opts:['Takeaway','Dine-in','Staff meal','Delivery'], ans:1},
+      {q:'라떼에 들어가는 밀크는?', opts:['Full cream','Oat milk','Almond milk','Soy milk'], ans:1},
+      {q:'바나나 브레드는 어떻게 나가야 해요?', opts:['As is (그냥)','Toasted (구워서)','With ice cream','Warmed up'], ans:1},
+    ]
+  },
+  {
+    name:'Amanda', type:'ta', date:'3 Jun 2025', time:'09:39:35',
+    items:['1 × Mocha (Medium)', '  Soy milk', '  Extra hot', '1 × Piccolo'],
+    q:[
+      {q:'모카에 들어가는 밀크는?', opts:['Full cream','Oat milk','Soy milk','Almond milk'], ans:2},
+      {q:'모카의 온도는?', opts:['Regular hot','Extra hot','Warm (미지근)','Iced'], ans:1},
+      {q:'피콜로는 몇 oz 잔에 서빙해요?', opts:['4oz','8oz (Small)','12oz (Medium)','16oz (Large)'], ans:0},
+    ]
+  },
+  {
+    name:'Koo', type:'ta', date:'2 Jun 2025', time:'08:15:22',
+    items:['1 × Chai Latte (Large)', '  Oat milk', '  1 Sugar', '1 × Long Black (Medium)', '  Extra shot'],
+    q:[
+      {q:'차이라떼 사이즈는?', opts:['Small (8oz)','Medium (12oz)','Large (16oz)','Extra Large'], ans:2},
+      {q:'Long Black 기본 Medium(2샷) + extra shot = 총 몇 샷?', opts:['2샷','3샷','4샷','5샷'], ans:2},
+      {q:'차이라떼에 설탕은?', opts:['No sugar','Half sugar','1 sugar','2 sugar'], ans:2},
+    ]
+  },
+  {
+    name:'Table 9', type:'di', date:'10 Jun 2025', time:'11:20:45',
+    items:['1 × Flat White (Small)', '1 × Hot Chocolate (Medium)', '  Kids size', '  Marshmallow', '1 × Smashed Avocado', '1 × Eggs Benedict'],
+    q:[
+      {q:'이건 테이크아웃인가요 다인인인가요?', opts:['Takeaway','Dine-in','Pick-up','Delivery'], ans:1},
+      {q:'핫초콜릿에 추가로 올려주는 것은?', opts:['Cinnamon','Marshmallow','Chocolate powder','Sugar'], ans:1},
+      {q:'이 테이블에서 음식 주문은 몇 개?', opts:['없음','1개','2개','3개'], ans:2},
+    ]
+  },
+];
+
+let currentQuizIdx = 0;
+let quizAnswered = [];
+
+function generateDocketQuiz() {
+  currentQuizIdx = Math.floor(Math.random()*DOCKET_QUIZZES.length);
+  const quiz = DOCKET_QUIZZES[currentQuizIdx];
+  quizAnswered = new Array(quiz.q.length).fill(false);
+
+  const isDI = quiz.type==='di';
+  let docketHTML = `<div style="font-size:10px;color:#666;border-bottom:1px dashed #ccc;padding-bottom:6px;margin-bottom:8px">${quiz.date} &nbsp; ${quiz.time}<br>Square Register 0475</div>`;
+  if(isDI) {
+    docketHTML += `<div style="font-size:10px;color:#888;margin-bottom:3px">EAT IN</div><div style="font-size:16px;font-weight:700;margin-bottom:6px">${quiz.name}</div>`;
+  } else {
+    docketHTML += `<div style="font-size:10px;color:#888;margin-bottom:3px">TAKE TAKE TAKE AWAY</div><div style="font-size:16px;font-weight:700;margin-bottom:6px">${quiz.name}</div>`;
+  }
+  quiz.items.forEach(item => {
+    docketHTML += `<div>${item}</div>`;
+  });
+  document.getElementById('docket-quiz-paper').innerHTML = docketHTML;
+
+  const qEl = document.getElementById('quiz-questions');
+  qEl.innerHTML = '';
+  quiz.q.forEach((q, qi) => {
+    const sec = document.createElement('div');
+    sec.className = 'q-section';
+    sec.innerHTML = `<div class="q-title">Q${qi+1}. ${q.q}</div><div class="q-options" id="q-opts-${qi}"></div>`;
+    const opts = document.getElementById('q-opts-'+qi);
+    q.opts.forEach((opt, oi) => {
+      const b = document.createElement('button');
+      b.className = 'q-btn';
+      b.textContent = opt;
+      b.onclick = () => answerQuiz(qi, oi, q.ans);
+      opts?.appendChild(b);
+    });
+    sec.appendChild(opts);
+    qEl.appendChild(sec);
+  });
+}
+
+function answerQuiz(qi, chosen, correct) {
+  if(quizAnswered[qi]) return;
+  quizAnswered[qi] = true;
+  const opts = document.querySelectorAll(`#q-opts-${qi} .q-btn`);
+  opts.forEach((b,i) => {
+    b.disabled = true;
+    if(i===correct) b.classList.add('correct-ans');
+    else if(i===chosen) b.classList.add('wrong-ans');
+  });
+  if(chosen===correct) showNotif('✅ 정답!');
+  else showNotif('❌ 오답. 정답은 ' + (correct+1) + '번');
+}
+
+// Init POS
+window.speechSynthesis.onvoiceschanged = () => {};
+</script>
+</body>
+</html>
